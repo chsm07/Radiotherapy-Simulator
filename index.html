@@ -1,1 +1,1040 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Anatômico - Dashboard TPS</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']]
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        body {
+            background-color: #000000;
+            display: flex;
+            justify-content: center; 
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px; 
+            box-sizing: border-box;
+            font-family: sans-serif;
+            overflow-x: hidden; 
+        }
+
+        #simulador-container {
+            width: 100%;
+            max-width: 1200px; 
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .layout-principal {
+            display: flex;
+            width: 100%;
+            gap: 25px;
+            align-items: stretch;
+        }
+
+        .coluna-esquerda {
+            flex: 1.5; 
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .coluna-direita {
+            flex: 1; 
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .painel-box {
+            background-color: #111111;
+            border: 2px solid #333;
+            border-radius: 12px;
+            padding: 15px 20px;
+            box-sizing: border-box;
+            width: 100%;
+            transition: all 0.5s ease;
+        }
+
+        .painel-titulo {
+            color: #888;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+
+        .visualizador {
+            position: relative;
+            width: 100%; 
+            aspect-ratio: 16 / 9; 
+            overflow: visible; 
+        }
+
+        .visualizador img.camada-principal {
+            position: absolute;
+            bottom: 10%;   
+            right: 16%;    
+            width: 50%;   
+            height: auto; 
+            object-fit: contain; 
+            transition: right 1s ease-in-out, transform 1s ease-in-out;
+            transform-origin: center;
+        }
+
+        #img-externa { z-index: 2; transition: opacity 1.5s ease-in-out, right 1s ease-in-out, transform 1s ease-in-out; }
+        #img-interna { z-index: 1; opacity: 0; transition: opacity 1.5s ease-in-out, right 1s ease-in-out, transform 1s ease-in-out; }
+
+        #acelerador {
+            position: absolute;
+            top: 5%;      
+            left: -10%;   
+            height: 90%; 
+            width: auto;
+            z-index: -1; 
+        }
+
+        .controles-particulas {
+            display: flex;
+            justify-content: space-around;
+            gap: 10px;
+        }
+
+        .btn-particula {
+            background: transparent; border: none; display: flex; flex-direction: column;
+            align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 12px;
+            transition: transform 0.2s, background-color 0.3s;
+        }
+        .btn-particula:hover { background-color: rgba(255, 255, 255, 0.05); transform: scale(1.05); }
+        .btn-particula.ativo { background-color: rgba(255, 255, 255, 0.1); outline: 1px solid rgba(255,255,255,0.2); }
+        
+        .titulo-particula { color: #ffffff; font-weight: bold; font-size: 13px; text-transform: uppercase; }
+        .esfera-particula { width: 28px; height: 28px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: bold; color: #111; }
+        
+        .esfera-proton { background: radial-gradient(circle, #ff8888, #660000); box-shadow: 0 0 15px rgba(255,17,17,0.5); }
+        .esfera-foton { background: radial-gradient(circle, #ffee88, #664d00); box-shadow: 0 0 15px rgba(255,204,0,0.5); }
+
+        #legenda-anatomica {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .legenda-item { display: flex; align-items: center; padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid #333; transition: all 0.3s; }
+        .legenda-item:hover { background-color: rgba(255, 255, 255, 0.05); }
+        .legenda-item.ativo { border-color: #ffe600; background-color: rgba(255, 230, 0, 0.1); box-shadow: 0 0 8px rgba(255, 230, 0, 0.3); }
+        .legenda-cor { width: 20px; height: 20px; border-radius: 4px; margin-right: 12px; }
+        .legenda-texto { color: #ffffff; font-size: 13px; font-weight: bold; text-transform: uppercase; }
+        .legenda-cor.pele { background-color: #dcb29b; }
+        .legenda-cor.pulmao { background-color: #e29c9a; }
+        .legenda-cor.gordura { background-color: #f0c660; }
+        .legenda-cor.osso { background-color: #e7dcc0; }
+
+        .controles-miniaturas {
+            display: flex;
+            gap: 15px;
+            justify-content: space-between;
+        }
+
+        .btn-miniatura {
+            flex: 1; height: 50px; display: flex; align-items: center; background-color: #1a1a1a;
+            border: 2px solid #333; border-radius: 8px; cursor: pointer; overflow: hidden;
+            padding: 0; transition: all 0.3s; gap: 10px; color: #888; font-weight: bold; font-size: 12px; text-transform: uppercase;
+        }
+        .btn-miniatura img { width: 40px; height: 100%; object-fit: cover; object-position: left center; border-right: 1px solid #333; }
+        .btn-miniatura.ativo { border-color: #ffe600; box-shadow: 0 0 8px rgba(255, 230, 0, 0.4); color: #ffffff; }
+
+        .area-grafico-wrapper {
+            position: relative;
+            width: 100%;
+            height: 180px; 
+            background-color: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        #aviso-grafico {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            color: #666; font-size: 12px; text-align: center;
+            padding: 10px; box-sizing: border-box; border: 1px dashed #555; border-radius: 8px;
+        }
+
+        #aviso-profundidade {
+            display: none; 
+            position: absolute; 
+            top: 10px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            background-color: rgba(255, 68, 68, 0.95); 
+            color: white; 
+            padding: 6px 15px; 
+            border-radius: 20px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            z-index: 10; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+            white-space: nowrap;
+        }
+
+        #container-canvas {
+            display: none; 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            padding: 10px; box-sizing: border-box;
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .slider-label { color: #ccc; font-size: 13px; font-weight: bold; display: flex; justify-content: space-between; }
+        .slider-input { width: 100%; cursor: pointer; }
+
+        .projétil-feixe { position: absolute; width: 6px; height: 6px; border-radius: 50%; z-index: 5; animation: piscar-energia 0.3s infinite alternate; transition: left 0.8s linear, top 0.8s linear, opacity 0.3s ease-out; opacity: 1; transform: translate(-50%, -50%); }
+        @keyframes piscar-energia { 0% { filter: brightness(1); } 100% { filter: brightness(1.4); } }
+        
+        .proj-proton { background: #ff1111; box-shadow: 0 0 10px #ff1111, 0 0 20px rgba(255, 17, 17, 0.6); }
+        .proj-foton { background: #ffcc00; box-shadow: 0 0 10px #ffcc00, 0 0 20px rgba(255, 204, 0, 0.6); }
+
+        #mancha-dose { position: absolute; z-index: 4; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; transition: opacity 0.5s ease-in-out, left 0.4s ease, top 0.4s ease; filter: blur(3px) brightness(1.3); mix-blend-mode: screen; border-radius: 50%; }
+        .dose-pele { width: 40px; height: 15px; background: radial-gradient(ellipse at center, #ffffff 0%, #ffffff 10%, #ff0000 20%, #ff0000 80%, #ffaa00 95%, rgba(0,0,0,0) 100%); }
+        .dose-profunda { width: 50px; height: 50px; background: radial-gradient(ellipse at center, #ffffff 0%, #ffffff 10%, #ff0000 20%, #ff0000 80%, #ffaa00 95%, rgba(0,0,0,0) 100%); }
+        .dose-bragg-pele { width: 18px; height: 18px; background: #ffffff; box-shadow: 0 0 15px 8px #ffffff; border-radius: 50%; }
+        .dose-bragg-profunda { width: 6px; height: 90px; background: transparent; position: relative; }
+        .dose-bragg-profunda::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 16px; height: 16px; background: #ffffff; box-shadow: 0 0 10px 5px #ffffff, 0 0 20px 8px rgba(255, 0, 0, 0.8); border-radius: 50%; }
+
+        .barra-ferramentas {
+            width: 100%;
+            background-color: #111111; 
+            border: 2px solid #333; 
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 15px 25px;
+            box-sizing: border-box;
+            z-index: 20;
+            margin-top: auto; 
+        }
+
+        .btn-ferramenta {
+            background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 8px;
+            cursor: pointer; color: #ccc; font-family: sans-serif; font-weight: bold; font-size: 14px; transition: transform 0.2s;
+        }
+        .btn-ferramenta:hover { transform: scale(1.1); color: #fff; }
+        .btn-ferramenta svg { width: 32px; height: 32px; fill: #ccc; transition: fill 0.2s; }
+        .btn-ferramenta:hover svg { fill: #fff; }
+
+        /* ==========================================
+           ESTILOS DO MODAL DE INFORMAÇÃO
+           ========================================== */
+        .modal-overlay {
+            display: none; 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.85); z-index: 100;
+            justify-content: center; align-items: center; backdrop-filter: blur(5px);
+        }
+
+        .modal-box {
+            background-color: #111111; border: 2px solid #444; border-radius: 12px;
+            width: 90%; max-width: 800px; max-height: 90vh;
+            display: flex; flex-direction: column; position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); overflow: hidden;
+        }
+
+        .btn-fechar-modal {
+            position: absolute; top: 15px; right: 20px; background: none; border: none;
+            color: #888; font-size: 20px; font-weight: bold; cursor: pointer; transition: color 0.2s;
+            z-index: 10;
+        }
+        .btn-fechar-modal:hover { color: #ff4444; }
+
+        .modal-header { display: flex; border-bottom: 1px solid #333; background-color: #1a1a1a; padding-right: 50px; }
+        
+        .btn-aba {
+            flex: 1; padding: 15px 10px; background: none; border: none; border-bottom: 3px solid transparent;
+            color: #888; font-weight: bold; font-size: 14px; cursor: pointer; transition: all 0.3s;
+        }
+        .btn-aba:hover { background-color: #222; color: #fff; }
+        .btn-aba.ativo { color: #ffe600; border-bottom-color: #ffe600; background-color: #111; }
+
+        .modal-conteudo {
+            padding: 30px; overflow-y: auto; color: #ddd; font-size: 15px; line-height: 1.6;
+        }
+
+        .info-equacao { background-color: #000; padding: 20px; border-radius: 8px; border: 1px solid #333; text-align: center; margin-bottom: 20px; overflow-x: auto; }
+        .info-lista { list-style: none; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .info-lista li { background-color: #1a1a1a; padding: 15px; border-radius: 8px; border-left: 4px solid #ffe600; }
+        .info-lista strong { color: #ffe600; display: block; margin-bottom: 5px; font-size: 16px; }
+
+        @media (max-width: 900px) {
+            .layout-principal { flex-direction: column; }
+            .coluna-esquerda, .coluna-direita { width: 100%; }
+            .visualizador { width: 90vw; margin: 0 auto; }
+            .barra-ferramentas { flex-wrap: wrap; border-radius: 12px; gap: 15px; margin-top: 10px; }
+            .btn-ferramenta { width: 22%; margin-bottom: 10px; }
+            .info-lista { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="simulador-container">
+        
+        <div class="layout-principal">
+            
+            <div class="coluna-esquerda">
+                <div class="painel-box">
+                    <div class="painel-titulo">Partícula</div>
+                    
+                    <div class="controles-particulas" style="justify-content: center; gap: 40px;">
+                        <button class="btn-particula" onclick="selecionarParticula(this, 'proton')">
+                            <span class="titulo-particula">Próton</span>
+                            <div class="esfera-particula esfera-proton">+</div>
+                        </button>
+                        <button class="btn-particula" onclick="selecionarParticula(this, 'foton')">
+                            <span class="titulo-particula">Fóton</span>
+                            <div class="esfera-particula esfera-foton">&gamma;</div>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="visualizador" id="area-visualizador">
+                    <img id="acelerador" src="acelerador_partículas.png" alt="Acelerador Linear">
+                    <img id="img-interna" class="camada-principal" src="silhueta_interna.png" alt="Vista Interna">
+                    <img id="img-externa" class="camada-principal" src="silhueta_externa.png" alt="Vista Externa">
+                    <div id="mancha-dose"></div>
+                </div>
+
+                <div class="barra-ferramentas">
+                    <button class="btn-ferramenta" onclick="iniciarSimulador()">
+                        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <span>Iniciar</span>
+                    </button>
+
+                    <button class="btn-ferramenta" onclick="reiniciarSimulador()">
+                        <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+                        <span>Reiniciar</span>
+                    </button>
+
+                    <button class="btn-ferramenta" onclick="abrirModalInfo()">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                        <span>Info</span>
+                    </button>
+
+                    <button class="btn-ferramenta">
+                        <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+                        <span>Salvar</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="coluna-direita">
+                
+                <div class="painel-box">
+                    <div class="painel-titulo">Gráfico Deposição de Dose x Profundidade</div>
+                    <div class="area-grafico-wrapper">
+                        <div id="aviso-grafico">Configure a energia, escolha os parâmetros e clique em Iniciar.</div>
+                        <div id="aviso-profundidade">⚠️ Passou da profundidade máxima!</div>
+                        <div id="container-canvas">
+                            <canvas id="meuGraficoFisico"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="painel-box">
+                    <div class="slider-group">
+                        <div class="slider-label"><span id="label-tipo-energia">Energia (MeV / MV)</span><span id="valor-energia">0</span></div>
+                        <input type="range" class="slider-input" id="slider-energia" min="0" max="250" value="0" oninput="atualizarEnergia()">
+                    </div>
+                </div>
+
+                <div class="painel-box">
+                    <div class="painel-titulo">Visualização</div>
+                    <div class="controles-miniaturas">
+                        <button id="btn-externo" class="btn-miniatura ativo" onclick="alternarVista('externa')">
+                            <img src="silhueta_externa.png" alt="Externo"><span>Externo</span>
+                        </button>
+                        <button id="btn-interno" class="btn-miniatura" onclick="alternarVista('interna')">
+                            <img src="silhueta_interna.png" alt="Interno"><span>Interno</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="painel-box" id="box-orgaos">
+                    <div class="painel-titulo">Órgãos / Tecidos</div>
+                    <div id="legenda-anatomica">
+                        <div class="legenda-item" onclick="selecionarAlvo(this, 'pele')">
+                            <div class="legenda-cor pele"></div><span class="legenda-texto">Pele</span>
+                        </div>
+                        <div class="legenda-item" onclick="selecionarAlvo(this, 'pulmao')">
+                            <div class="legenda-cor pulmao"></div><span class="legenda-texto">Pulmão</span>
+                        </div>
+                        <div class="legenda-item" onclick="selecionarAlvo(this, 'osso')">
+                            <div class="legenda-cor osso"></div><span class="legenda-texto">Osso</span>
+                        </div>
+                        <div class="legenda-item" onclick="selecionarAlvo(this, 'gordura')">
+                            <div class="legenda-cor gordura"></div><span class="legenda-texto">Gordura</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+    </div>
+
+    <div id="modal-info" class="modal-overlay">
+        <div class="modal-box">
+            <button class="btn-fechar-modal" onclick="fecharModalInfo()">X</button>
+            <div class="modal-header">
+                <button class="btn-aba ativo" onclick="mudarAbaInfo('proton', this)">PRÓTON</button>
+                <button class="btn-aba" onclick="mudarAbaInfo('foton', this)">FÓTON</button>
+                <button class="btn-aba" onclick="mudarAbaInfo('tecidos', this)">TECIDOS</button>
+            </div>
+            <div id="conteudo-modal-info" class="modal-conteudo"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // DADOS FÍSICOS
+        // ==========================================
+        const dadosFisicosTecidos = {
+            pele:    { rho: 1.090, I: 74.9e-6, Z_A: 0.549, cor: '#dcb29b', maxProf: 0.5 },
+            pulmao:  { rho: 0.330, I: 75.3e-6, Z_A: 0.550, cor: '#e29c9a', maxProf: 25.0 }, 
+            gordura: { rho: 0.920, I: 63.2e-6, Z_A: 0.554, cor: '#f0c660', maxProf: 20.0 },
+            osso:    { rho: 1.800, I: 106.4e-6, Z_A: 0.500, cor: '#e7dcc0', maxProf: 5.0 } 
+        };
+
+        // Energias fixas disponíveis para Fótons
+        const energiasFoton = [0, 6, 10, 15];
+
+        // ==========================================
+        // CONTEÚDOS DO MODAL DE INFORMAÇÕES
+        // ==========================================
+        const conteudosModal = {
+            proton: `
+                <h3 style="margin-top:0; color:#fff;">Física do Feixe de Prótons</h3>
+                <p>O simulador numérico calcula a deposição de dose do feixe de prótons realizando a integração iterativa da <strong>Equação de Bethe-Bloch</strong>, que descreve o poder de freamento colisional (perda de energia por distância) de partículas carregadas pesadas:</p>
+                
+                <div class="info-equacao">
+                    $$-\\left\\langle \\frac{dE}{dx} \\right\\rangle = K z^2 \\frac{Z}{A} \\frac{1}{\\beta^2} \\left[ \\frac{1}{2} \\ln\\left( \\frac{2 m_e c^2 \\beta^2 \\gamma^2 T_{max}}{I^2} \\right) - \\beta^2 \\right]$$
+                </div>
+
+                <h4 style="color:#fff; border-bottom:1px solid #333; padding-bottom:5px;">Constantes Físicas Utilizadas</h4>
+                <ul class="info-lista">
+                    <li><strong>Massa de Repouso do Próton (M)</strong><br> 938.272 MeV/c²</li>
+                    <li><strong>Massa de Repouso do Elétron (m<sub>e</sub>c²)</strong><br> 0.510998 MeV</li>
+                    <li><strong>Carga da Partícula (z)</strong><br> 1 (Carga unitária positiva)</li>
+                    <li><strong>Constante de Poder de Freamento (K)</strong><br> 0.307075 MeV·cm²/mol</li>
+                </ul>
+
+                <h4 style="color:#fff; border-bottom:1px solid #333; padding-bottom:5px; margin-top:20px;">Razão Efetiva de Massa e Carga (Z/A)</h4>
+                <p style="font-size: 14px; margin-top:5px;">Para tecidos biológicos (misturas complexas), calculamos a razão efetiva fazendo a média ponderada das frações em massa ($w_i$) de cada elemento constituinte:</p>
+                <div class="info-equacao">
+                    $$\\langle Z/A \\rangle = \\sum_{i} w_i \\cdot \\left( \\frac{Z_i}{A_i} \\right)$$
+                </div>
+
+                <h4 style="color:#fff; border-bottom:1px solid #333; padding-bottom:5px; margin-top:20px;">Cinemática Relativística</h4>
+                <ul class="info-lista">
+                    <li><strong>Fator de Lorentz ($\\gamma$)</strong><br> $$\\gamma = \\frac{E + M}{M}$$</li>
+                    <li><strong>Velocidade Relativa ($\\beta$)</strong><br> $$\\beta^2 = 1 - \\frac{1}{\\gamma^2}$$</li>
+                    <li style="grid-column: 1 / -1;"><strong>Transferência Máxima de Energia ($T_{max}$)</strong><br> $$T_{max} = \\frac{2 m_e c^2 \\beta^2 \\gamma^2}{1 + 2\\gamma \\frac{m_e}{M} + \\left(\\frac{m_e}{M}\\right)^2}$$</li>
+                </ul>
+            `,
+            foton: `
+                <h3 style="margin-top:0; color:#fff;">Física do Feixe de Fótons (Valores Tabelados)</h3>
+                <p>O simulador calcula a curva de Dose Profunda Percentual (PDD) para fótons baseada na derivação exata de dados clínicos reais, eliminando extrapolações empíricas abstratas entre as energias.</p>
+                
+                <div class="info-equacao">
+                    $$ PDD(x) = 100 \\cdot [1 - e^{-k \\cdot x}] \\cdot e^{-\\mu_{eff} \\cdot (x - d_{max})} \\cdot \\left( \\frac{SSD + d_{max}}{SSD + x} \\right)^2 $$
+                </div>
+
+                <h4 style="color:#fff; border-bottom:1px solid #333; padding-bottom:5px; margin-top:25px;">Calibração Clínica (6, 10 e 15 MV)</h4>
+                <p style="font-size: 14px; color: #ddd; line-height: 1.6;">
+                    Diferente dos prótons, a atenuação de fótons é um processo físico complexo que envolve múltiplos espalhamentos. Para garantir o máximo rigor físico e evitar parametrizações matemáticas irreais, o simulador foi travado exclusivamente nas energias que representam o <strong>Padrão-Ouro clínico mundial (6, 10 e 15 MV)</strong>.
+                </p>
+                <p style="font-size: 13px; color: #aaa; margin-bottom: 20px;">
+                    <strong>Por que apenas estas energias?</strong> Energias menores (ex: 4 MV) são pouco penetrantes para a maioria dos tratamentos profundos atuais. Já as energias superiores a 15 MV (como 18 ou 25 MV) entraram em desuso global devido ao risco de <strong>contaminação por nêutrons</strong>. Em altíssimas energias, os fótons interagem com os metais do cabeçote do acelerador linear (reações fotonucleares), ejetando nêutrons que são dificílimos de blindar e aumentam drasticamente a probabilidade de cânceres secundários no paciente.
+                </p>
+
+                <h4 style="color:#fff; border-bottom:1px solid #333; padding-bottom:5px;">Calibração Empírica dos Parâmetros</h4>
+                <p style="font-size: 13px; color: #aaa;">
+                    Os parâmetros fundamentais do feixe de fótons foram extraídos de medições exatas de comissionamento de aceleradores lineares (Varian VitalBeam), validadas contra o padrão internacional <strong>British Journal of Radiology, Supplement 25 (BJR-25)</strong> para um campo de 10x10 cm² e SSD de 100 cm. Cada energia foi calibrada de forma independente, sendo seu comportamento apenas escalado pela profundidade radiológica do tecido ($ \\rho $).
+                </p>
+                <ul class="info-lista">
+                    <li><strong>Profundidade do Pico ($d_{max}$)</strong><br> Obtido diretamente da tabela clínica para a água e escalado pela densidade do tecido alvo ($d_{max, tecido} = d_{max, água} / \\rho$). Valores base: 1.5 cm (6 MV), 2.4 cm (10 MV) e 2.9 cm (15 MV).</li>
+                    <li><strong>Constante de Build-up ($k$)</strong><br> Derivada assumindo que 95% do equilíbrio eletrônico ocorre exatamente na profundidade $d_{max}$ ($k = 2.9957 / d_{max}$). O valor é escalado pelo tecido ($k_{tecido} = k_{água} \\cdot \\rho$). Valores base: 2.00 cm⁻¹, 1.25 cm⁻¹ e 1.03 cm⁻¹.</li>
+                    <li style="grid-column: 1 / -1;"><strong>Atenuação Efetiva ($\\mu_{eff}$)</strong><br> Obtida isolando o termo exponencial na equação da PDD para a profundidade de 10 cm ($D_{10}$ tabelado). O valor final é escalado pelo tecido ($\\mu_{eff, tecido} = \\mu_{eff, água} \\cdot \\rho$). Valores base: 0.0285 cm⁻¹, 0.0216 cm⁻¹ e 0.0178 cm⁻¹.</li>
+                </ul>
+
+                <div style="background-color: rgba(255, 230, 0, 0.08); padding: 18px; border-radius: 8px; border-left: 4px solid #ffe600; margin-top: 25px;">
+                    <strong style="color: #ffe600; font-size: 15px; display: block; margin-bottom: 8px;">Fontes e Referências Clínicas</strong>
+                    <p style="font-size: 13px; color: #ddd; margin: 0; line-height: 1.5;">
+                        Os dados brutos de $d_{max}$ e $D_{10}$ que alimentam a derivação matemática deste simulador provêm de <em>Chowdhury RI, et al. A comparative study of photon beam percentage depth dose of a recently installed Varian VitalBeam linear accelerator.</em> As curvas originais que baseiam as calibrações radioterápicas derivam de compilações globais como o histórico <em>BJR Supplement 25</em> e protocolos oficiais. Para consultar tabelas padrão (Golden Beam Data) e as métricas exatas de dosimetria de feixes externos, utiliza-se como base o <strong>Protocolo TRS-398</strong> da Agência Internacional de Energia Atômica (AIEA).<br><br>
+                        <a href="https://www-pub.iaea.org/MTCD/Publications/PDF/trs398_web.pdf" target="_blank" style="color: #ffe600; text-decoration: underline; font-weight: bold;">🔗 Acessar Documento Oficial da AIEA (TRS-398)</a>
+                    </p>
+                </div>
+            `,
+            tecidos: `
+                <h3 style="margin-top:0; color:#fff;">Parâmetros Físicos dos Tecidos</h3>
+                <p>Os cálculos dependem da composição química exata do alvo. Estes dados podem ser consultados nos bancos de dados oficiais do NIST, como o <a href="https://physics.nist.gov/PhysRefData/Star/Text/PSTAR.html" target="_blank" style="color: #ffe600; text-decoration: none;">PSTAR (Prótons)</a> e <a href="https://physics.nist.gov/PhysRefData/Star/Text/ESTAR.html" target="_blank" style="color: #ffe600; text-decoration: none;">ESTAR (Elétrons)</a>, bem como nas métricas do <a href="https://www.icru.org/report/photon-electron-proton-and-neutron-interaction-data-for-body-tissues-report-46/" target="_blank" style="color: #ffe600; text-decoration: none;">ICRU Report 46</a>.</p>
+                <ul class="info-lista">
+                    <li style="border-left-color: #dcb29b;">
+                        <strong style="color: #dcb29b;">Pele (Skin)</strong>
+                        Densidade ($\\rho$): 1.090 g/cm³<br>
+                        Excitação ($I$): 74.9 eV<br>
+                        Razão $Z/A$: 0.549
+                    </li>
+                    <li style="border-left-color: #e29c9a;">
+                        <strong style="color: #e29c9a;">Pulmão (Lung)</strong>
+                        Densidade ($\\rho$): 0.330 g/cm³<br>
+                        Excitação ($I$): 75.3 eV<br>
+                        Razão $Z/A$: 0.550
+                    </li>
+                    <li style="border-left-color: #e7dcc0;">
+                        <strong style="color: #e7dcc0;">Osso Cortical (Bone)</strong>
+                        Densidade ($\\rho$): 1.800 g/cm³<br>
+                        Excitação ($I$): 106.4 eV<br>
+                        Razão $Z/A$: 0.500
+                    </li>
+                    <li style="border-left-color: #f0c660;">
+                        <strong style="color: #f0c660;">Gordura (Adipose)</strong>
+                        Densidade ($\\rho$): 0.920 g/cm³<br>
+                        Excitação ($I$): 63.2 eV<br>
+                        Razão $Z/A$: 0.554
+                    </li>
+                </ul>
+            `
+        };
+
+        // ==========================================
+        // VARIÁVEIS DE ESTADO DO SIMULADOR
+        // ==========================================
+        let particulaAtual = null;
+        let alvoAtual = null;
+        let motorFeixe = null;
+        let areaVisualizador = null;
+        let simuladorRodando = false;
+        let graficoChart = null; 
+
+        const coordenadas = {
+            origemX: 46, 
+            origemY: 40, 
+            alvos: {
+                pele:    { destY: 60, posRight: '19%', scaleX: 1 }, 
+                pulmao:  { destY: 64, posRight: '21%', scaleX: 1 }, 
+                osso:    { destY: 65, posRight: '16%', scaleX: -1 }, 
+                gordura: { destY: 63, posRight: '25%', scaleX: 1 }
+            }
+        };
+
+        // ==========================================
+        // FUNÇÕES DO MODAL
+        // ==========================================
+        function abrirModalInfo() {
+            document.getElementById('modal-info').style.display = 'flex';
+            let abaA_Abrir = particulaAtual && (particulaAtual === 'proton' || particulaAtual === 'foton') ? particulaAtual : 'proton';
+            const botoes = document.querySelectorAll('.modal-header .btn-aba');
+            let botaoAtivo = Array.from(botoes).find(b => b.innerText.toLowerCase() === (abaA_Abrir === 'foton' ? 'fóton' : 'próton'));
+            if(!botaoAtivo) botaoAtivo = botoes[0];
+            
+            mudarAbaInfo(abaA_Abrir, botaoAtivo);
+        }
+
+        function fecharModalInfo() {
+            document.getElementById('modal-info').style.display = 'none';
+        }
+
+        function mudarAbaInfo(aba, elementoBotao) {
+            document.querySelectorAll('.btn-aba').forEach(btn => btn.classList.remove('ativo'));
+            elementoBotao.classList.add('ativo');
+
+            const container = document.getElementById('conteudo-modal-info');
+            container.innerHTML = conteudosModal[aba];
+
+            if (window.MathJax) {
+                MathJax.typesetPromise([container]).catch(function (err) {
+                    console.log('MathJax erro de renderização: ' + err.message);
+                });
+            }
+        }
+
+        // ==========================================
+        // LÓGICA DO SLIDER INTELIGENTE (Contínuo vs Discreto)
+        // ==========================================
+        function getEnergiaAtual() {
+            const valorInput = parseInt(document.getElementById('slider-energia').value);
+            if (particulaAtual === 'foton') {
+                return energiasFoton[valorInput] || 0;
+            }
+            return valorInput; // Para prótons, retorna o valor real (contínuo 0-250)
+        }
+
+        function atualizarEnergia() {
+            let energia = getEnergiaAtual();
+            document.getElementById('valor-energia').innerText = energia;
+            atualizarGraficoDinamico(); 
+            
+            if (simuladorRodando) {
+                if (energia <= 1) { 
+                    pararFeixe();
+                } else {
+                    verificarDisparo();
+                }
+            }
+        }
+
+        function selecionarParticula(botaoClicado, tipoParticula) {
+            const botoes = document.querySelectorAll('.btn-particula');
+            botoes.forEach(btn => btn.classList.remove('ativo'));
+            botaoClicado.classList.add('ativo');
+            
+            particulaAtual = tipoParticula;
+            
+            const slider = document.getElementById('slider-energia');
+            const labelEnergia = document.getElementById('label-tipo-energia');
+            
+            if (particulaAtual === 'proton') {
+                slider.min = 0;
+                slider.max = 250;
+                slider.step = 1;
+                slider.value = 0; 
+                labelEnergia.innerText = 'Energia (MeV)';
+            } else if (particulaAtual === 'foton') {
+                slider.min = 0;
+                slider.max = 3; // Posições no array: [0, 6, 10, 15]
+                slider.step = 1;
+                slider.value = 0; 
+                labelEnergia.innerText = 'Energia (MV)';
+            }
+
+            atualizarEnergia();
+            verificarDisparo();
+        }
+
+        // ==========================================
+        // INICIALIZAÇÃO DO GRÁFICO VAZIO (Chart.js)
+        // ==========================================
+        document.addEventListener("DOMContentLoaded", () => {
+            const ctx = document.getElementById('meuGraficoFisico').getContext('2d');
+            graficoChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Profundidade (cm)', color: '#888' }, ticks: { color: '#888', maxTicksLimit: 8 }, grid: { color: '#333' } },
+                        y: { title: { display: true, text: 'Dose Relativa', color: '#888' }, ticks: { color: '#888' }, grid: { color: '#333' }, min: 0, max: 1.1 }
+                    },
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    elements: { point: { radius: 0 }, line: { tension: 0.4 } }, 
+                    animation: { duration: 0 } 
+                }
+            });
+        });
+
+        // ==========================================
+        // LÓGICA MATEMÁTICA
+        // ==========================================
+        function aplicarGaussiana(arrayDose, sigma) {
+            if(sigma < 0.5) return arrayDose; 
+            let resultado = new Array(arrayDose.length).fill(0);
+            let raioJanela = Math.ceil(sigma * 3); 
+            
+            for(let i = 0; i < arrayDose.length; i++) {
+                let somaDose = 0;
+                let somaPesos = 0;
+                for(let j = -raioJanela; j <= raioJanela; j++) {
+                    let indexVizinho = i + j;
+                    if(indexVizinho >= 0 && indexVizinho < arrayDose.length) {
+                        let peso = Math.exp(-(j*j)/(2*sigma*sigma));
+                        somaDose += arrayDose[indexVizinho] * peso;
+                        somaPesos += peso;
+                    }
+                }
+                resultado[i] = somaDose / somaPesos;
+            }
+            return resultado;
+        }
+
+        function calcularCurvaProton(energiaInicial, tecidoId) {
+            const mat = dadosFisicosTecidos[tecidoId];
+            
+            const K = 0.307075;
+            const M = 938.272;
+            const me_c2 = 0.510998;
+            
+            const dx = 0.05; 
+            const E_corte = 0.5;
+
+            let E = energiaInicial;
+            let x = 0.0;
+            let profundidades = [];
+            let dEdx = [];
+
+            while (E > E_corte && x < 150) { 
+                let gamma = (E + M) / M;
+                let beta_sq = 1.0 - (1.0 / (gamma * gamma));
+                let razao_m = me_c2 / M;
+                let T_max = (2 * me_c2 * beta_sq * (gamma * gamma)) / (1 + 2 * gamma * razao_m + razao_m * razao_m);
+
+                let termo_ln = 0.5 * Math.log((2 * me_c2 * beta_sq * (gamma * gamma) * T_max) / (mat.I * mat.I));
+                let termo_colchete = termo_ln - beta_sq;
+
+                let dE_dx_massa = K * 1.0 * mat.Z_A * (1.0 / beta_sq) * termo_colchete;
+                let dE_dx_linear = dE_dx_massa * mat.rho;
+
+                profundidades.push(x.toFixed(2));
+                dEdx.push(dE_dx_linear);
+
+                E = E - (dE_dx_linear * dx);
+                x = x + dx;
+            }
+
+            let alcance = x;
+
+            for(let i=0; i < Math.ceil(3.0/dx); i++){
+                x = x + dx;
+                profundidades.push(x.toFixed(2));
+                dEdx.push(0);
+            }
+
+            let sigma_cm = 0.012 * alcance;
+            let sigma_bins = sigma_cm / dx;
+
+            let dEdx_borrado = aplicarGaussiana(dEdx, sigma_bins);
+            let picoMaximo = Math.max(...dEdx_borrado);
+            
+            let dose_relativa = dEdx_borrado.map(val => val / picoMaximo);
+
+            return { eixosX: profundidades, eixosY: dose_relativa, cor: mat.cor, alcance: alcance };
+        }
+
+        function calcularCurvaFoton(energiaInicial, tecidoId) {
+            const mat = dadosFisicosTecidos[tecidoId];
+            let E = Math.max(energiaInicial, 1.0); 
+            
+            let base_dmax = 1.5;
+            let base_k = 2.00;
+            let base_mueff = 0.0285;
+
+            // Valores extraídos via derivação direta das tabelas BJR-25
+            if (E === 10) {
+                base_dmax = 2.4;
+                base_k = 1.25;
+                base_mueff = 0.0216;
+            } else if (E === 15) {
+                base_dmax = 2.9;
+                base_k = 1.03;
+                base_mueff = 0.0178;
+            }
+
+            let d_max = base_dmax / mat.rho;
+            let k = base_k * mat.rho;
+            let mu_eff = base_mueff * mat.rho;
+            let SSD = 100.0;
+
+            let dx = 0.1;
+            let profundidades = [];
+            let dose_bruta = [];
+            
+            let maxProfundidadeGrafico = mat.maxProf + 5.0; 
+            if (maxProfundidadeGrafico < 25.0) maxProfundidadeGrafico = 25.0; 
+
+            for (let x = 0; x <= maxProfundidadeGrafico; x += dx) {
+                profundidades.push(x.toFixed(1));
+                
+                let term_buildup = 1.0 - Math.exp(-k * x);
+                let term_attenuation = Math.exp(-mu_eff * (x - d_max));
+                let term_isq = Math.pow((SSD + d_max) / (SSD + x), 2);
+                
+                let d = term_buildup * term_attenuation * term_isq;
+                
+                if (x === 0) d = 0; 
+                
+                dose_bruta.push(d);
+            }
+
+            let picoMaximo = Math.max(...dose_bruta);
+            let dose_relativa = dose_bruta.map(val => val / picoMaximo);
+
+            let doseSaida = 0;
+            let indexSaida = Math.floor(mat.maxProf / dx);
+            if (indexSaida < dose_relativa.length) {
+                doseSaida = dose_relativa[indexSaida] * 100; 
+            }
+
+            return { 
+                eixosX: profundidades, 
+                eixosY: dose_relativa, 
+                cor: mat.cor, 
+                varouSempre: true, 
+                doseSaida: doseSaida 
+            };
+        }
+
+        // ==========================================
+        // ATUALIZADOR DO PAINEL FÍSICO
+        // ==========================================
+        function atualizarGraficoDinamico() {
+            const containerCanvas = document.getElementById('container-canvas');
+            const aviso = document.getElementById('aviso-grafico');
+            const avisoProfundidade = document.getElementById('aviso-profundidade');
+            const energia = getEnergiaAtual();
+
+            if (!simuladorRodando) {
+                containerCanvas.style.display = 'none';
+                aviso.style.display = 'flex';
+                avisoProfundidade.style.display = 'none';
+                
+                if (!particulaAtual || !alvoAtual) {
+                    aviso.innerText = "Selecione a partícula, o órgão e aperte Iniciar.";
+                } else if (energia <= 1) {
+                    aviso.innerText = "Configure a energia no controle deslizante e aperte Iniciar.";
+                } else {
+                    aviso.innerText = "Aperte 'Iniciar' para visualizar o gráfico de deposição de dose.";
+                }
+                return;
+            }
+
+            containerCanvas.style.display = 'block';
+            aviso.style.display = 'none';
+
+            let dadosFisicos;
+            const mat = dadosFisicosTecidos[alvoAtual];
+
+            if (particulaAtual === 'proton') {
+                dadosFisicos = calcularCurvaProton(energia, alvoAtual);
+                
+                if (dadosFisicos.alcance > mat.maxProf) {
+                    avisoProfundidade.innerText = `⚠️ Passou da profundidade máxima do órgão (${mat.maxProf.toFixed(1)} cm)!`;
+                    avisoProfundidade.style.display = 'block';
+                } else {
+                    avisoProfundidade.style.display = 'none';
+                }
+
+            } else if (particulaAtual === 'foton') {
+                dadosFisicos = calcularCurvaFoton(energia, alvoAtual);
+                
+                if (dadosFisicos.doseSaida > 1.0) { 
+                    avisoProfundidade.innerText = `⚠️ Fótons vararam o órgão (${mat.maxProf.toFixed(1)} cm)! Dose de Saída: ${dadosFisicos.doseSaida.toFixed(1)}%`;
+                    avisoProfundidade.style.display = 'block';
+                } else {
+                    avisoProfundidade.style.display = 'none';
+                }
+            }
+
+            graficoChart.data.labels = dadosFisicos.eixosX;
+            graficoChart.data.datasets = [{
+                label: 'Dose Relativa',
+                data: dadosFisicos.eixosY,
+                borderColor: dadosFisicos.cor,
+                backgroundColor: dadosFisicos.cor + '40', 
+                borderWidth: 3,
+                fill: true
+            }];
+            graficoChart.update();
+        }
+
+        // ==========================================
+        // EVENTOS DA INTERFACE (RESTANTE)
+        // ==========================================
+        function selecionarAlvo(itemClicado, tipoAlvo) {
+            const itens = document.querySelectorAll('.legenda-item');
+            itens.forEach(item => item.classList.remove('ativo'));
+            itemClicado.classList.add('ativo');
+            
+            alvoAtual = tipoAlvo;
+            
+            const imgInterna = document.getElementById('img-interna');
+            const imgExterna = document.getElementById('img-externa');
+            
+            if (alvoAtual) {
+                const conf = coordenadas.alvos[alvoAtual];
+                imgInterna.style.right = conf.posRight;
+                imgExterna.style.right = conf.posRight;
+                imgInterna.style.transform = `scaleX(${conf.scaleX})`;
+                imgExterna.style.transform = `scaleX(${conf.scaleX})`;
+            }
+
+            verificarDisparo();
+            atualizarGraficoDinamico(); 
+        }
+
+        function alternarVista(vista) {
+            const imgExterna = document.getElementById('img-externa');
+            const imgInterna = document.getElementById('img-interna');
+            const btnExterno = document.getElementById('btn-externo');
+            const btnInterno = document.getElementById('btn-interno');
+            const boxOrgaos = document.getElementById('box-orgaos'); 
+
+            if (vista === 'externa') {
+                imgExterna.style.opacity = '1'; imgInterna.style.opacity = '0'; 
+                boxOrgaos.style.opacity = '0'; 
+                boxOrgaos.style.pointerEvents = 'none'; 
+                btnExterno.classList.add('ativo'); btnInterno.classList.remove('ativo');
+                
+            } else if (vista === 'interna') {
+                imgExterna.style.opacity = '0'; imgInterna.style.opacity = '1'; 
+                boxOrgaos.style.opacity = '1'; 
+                boxOrgaos.style.pointerEvents = 'auto'; 
+                btnInterno.classList.add('ativo'); btnExterno.classList.remove('ativo');
+            }
+        }
+
+        function iniciarSimulador() {
+            const energia = getEnergiaAtual();
+            
+            if (!particulaAtual || !alvoAtual) {
+                alert('Atenção: Selecione uma Partícula e um Órgão alvo antes de Iniciar o simulador!');
+                return;
+            }
+            
+            if (energia <= 1) {
+                alert('Aumente a energia no controle deslizante!');
+                return;
+            }
+            
+            simuladorRodando = true;
+            verificarDisparo();
+            atualizarGraficoDinamico();
+        }
+
+        function reiniciarSimulador() {
+            simuladorRodando = false;
+            
+            particulaAtual = null;
+            document.querySelectorAll('.btn-particula').forEach(btn => btn.classList.remove('ativo'));
+            
+            desativarAlvos();
+            verificarDisparo();
+            
+            const slider = document.getElementById('slider-energia');
+            slider.min = 0;
+            slider.max = 250;
+            slider.step = 1;
+            slider.value = 0;
+            
+            document.getElementById('valor-energia').innerText = "0";
+            document.getElementById('label-tipo-energia').innerText = "Energia (MeV / MV)";
+            atualizarGraficoDinamico();
+        }
+
+        function desativarAlvos() {
+            const itens = document.querySelectorAll('.legenda-item');
+            itens.forEach(item => item.classList.remove('ativo'));
+            alvoAtual = null;
+
+            const imgInterna = document.getElementById('img-interna');
+            const imgExterna = document.getElementById('img-externa');
+            imgInterna.style.right = '16%';
+            imgExterna.style.right = '16%';
+            imgInterna.style.transform = 'scaleX(1)';
+            imgExterna.style.transform = 'scaleX(1)';
+        }
+
+        function verificarDisparo() {
+            const energia = getEnergiaAtual();
+            
+            if (particulaAtual && alvoAtual && simuladorRodando && energia > 1) {
+                if (!motorFeixe) {
+                    motorFeixe = setInterval(dispararParticula, 30); 
+                }
+            } else {
+                pararFeixe();
+            }
+            atualizarManchaDose();
+        }
+
+        function pararFeixe() {
+            clearInterval(motorFeixe);
+            motorFeixe = null;
+            atualizarManchaDose();
+        }
+
+        function atualizarManchaDose() {
+            const mancha = document.getElementById('mancha-dose');
+            if (!mancha) return;
+
+            if (motorFeixe && alvoAtual && simuladorRodando) {
+                mancha.style.left = `${coordenadas.origemX}%`;
+                mancha.style.top = `${coordenadas.alvos[alvoAtual].destY}%`;
+
+                mancha.className = '';
+
+                if (particulaAtual === 'foton') {
+                    if (alvoAtual === 'pele') {
+                        mancha.classList.add('dose-pele');
+                    } else {
+                        mancha.classList.add('dose-profunda');
+                    }
+                } else if (particulaAtual === 'proton') {
+                    if (alvoAtual === 'pele') {
+                        mancha.classList.add('dose-bragg-pele');
+                    } else {
+                        mancha.classList.add('dose-bragg-profunda');
+                    }
+                }
+
+                mancha.style.opacity = '1';
+            } else {
+                mancha.style.opacity = '0';
+            }
+        }
+
+        function dispararParticula() {
+            if (!areaVisualizador) areaVisualizador = document.getElementById('area-visualizador');
+            const bolinha = document.createElement('div');
+            
+            bolinha.classList.add('projétil-feixe');
+            bolinha.classList.add(`proj-${particulaAtual}`);
+            
+            const desvioAleatorioX = (Math.random() - 0.5) * 4; 
+            
+            const posX_Origem = coordenadas.origemX + desvioAleatorioX;
+            bolinha.style.left = `${posX_Origem}%`;
+            bolinha.style.top = `${coordenadas.origemY}%`;
+            
+            areaVisualizador.appendChild(bolinha);
+            void bolinha.offsetWidth;
+
+            const posX_Destino = posX_Origem; 
+            let posY_Destino;
+
+            if (alvoAtual) {
+                posY_Destino = coordenadas.alvos[alvoAtual].destY;
+            } else {
+                posY_Destino = 80; 
+            }
+
+            bolinha.style.left = `${posX_Destino}%`;
+            bolinha.style.top = `${posY_Destino}%`;
+
+            setTimeout(() => { bolinha.style.opacity = '0'; }, 650);
+            setTimeout(() => { bolinha.remove(); }, 800);
+        }
+    </script>
+</body>
+</html>
+
 
